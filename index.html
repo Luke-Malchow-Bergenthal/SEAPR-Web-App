@@ -165,6 +165,14 @@ function redraw(x, y) {
     }
 }
 
+NAME.refresh = function(node) {
+    if(node){
+        NAME.force.stop();
+        $('#flow').html('Stop');
+        NAME.main(node);
+    }
+}
+
 //Stops and starts the simulation
 NAME.flow = function() {
     if($('#network')[0] == null){
@@ -248,497 +256,478 @@ NAME.rezoom = function() {
 //Alert message when window has fully loaded
 $(window).ready(function () {
 
-/*
-$(function() {
-    $("#dialog").dialog();
-    $("#dialog").on( "dialogbeforeclose", function( event, ui ) {$('#loff').prop("checked", true);} );
-    $("#dialog").dialog({ position: { my: "left bottom", at: "left bottom", of: window } });
-    $("#dialog").dialog( "option", "width", 475 );
-    $("#dialog").dialog( "option", "height", 250 );
-});
-*/
-
-//$('#edgeOptions')
-//$('#nameOptions')
-//$('#cutoffOptions')
-NAME.reset();
-
-
-//var original = null;
-
-//Parse JSON file
-d3.json("noligands.json", function(error, gr) {
-  //original = gr
-  var a = [];
-for(var k in gr){ 
-    a.push(k);
-}
-
-$( "#tags" ).autocomplete({
-  source: a,
-  select: function( event, ui){
-      if(NAME.force !== null){
-		NAME.force.stop();
-      }
-    $('#flow').html('Stop');
-    var TestVar = ui.item.value;
-    main(TestVar);
-    //Remove text from box
-    $('#tags').val('');
-    //Necessary to remove text
-    return false;
-    }
-});
-  
-  NAME.graph = gr;
-  gr = null;
-});
-
-//Main function for visualization
-function main(desire) {
-
-    $('#tags').blur();
-    //$('#tags').val('');
-
-    NAME.cut = 1;
-    
-    if (!isNaN($('#cutoff').val()) && $('#cutoff').val()){
-        NAME.cut = $('#cutoff').val();
-    }
-
-    var low = false;
-
-    //graph = $.extend(true, [],original);
-
-    $("#box").html("Click a target to zoom; Double click to create new network with node at center");
-
-    var old = $('#network')[0];
-
-    //Purge old svg
-    if (old !== null && old !== undefined) {
-        old.parentNode.removeChild(old);
-        NAME.last.fixed = false;
-        NAME.previous = null;
-        NAME.rezoom();
-    }
-
-    //Root
-    var prime = null;
-    //Level 1
-    var second = [];
-    //Level 2
-    var third = [];
-
-    //Dictionary of nodes
-    var redund = {};
-
-    //Selected nodes
-    var nodes = [];
-
-    //For displaying selected edges/text labels
-    var eye = null;
-    //For resetting later
-    NAME.last = NAME.graph[desire];
-
-    //if(first.length == 0){
-    //    document.getElementById('box').innerHTML = "Sorry, no significant connections...";
-    //    return;
-    //}
-
-    //For acquiring coherent indexes
-    var indexer = 0;
-
-    //Root node
-    prime = NAME.graph[desire];
-    NAME.center = NAME.graph[desire];
-
-    //Init node values
-    //For style of node
-    prime.lvl = 1;
-    prime.index = indexer;
-    prime.sight = [];
-    redund[desire] = true;
-    nodes.push(NAME.graph[desire]);
-    
-    var asked = false;
-    var bestE = 1;
-    
-    for (var i in prime.links) {
-        if (prime.links[i][2] < bestE){
-            bestE = prime.links[i][2];
-        }
-    }
-
-    for (var i in prime.links) {
-
-        if(!NAME.cut || prime.links[i][2] <= NAME.cut){
-            indexer += 1;
-            //Init node values
-            NAME.graph[prime.links[i][0]].lvl = 2;
-            NAME.graph[prime.links[i][0]].index = indexer;
-            NAME.graph[prime.links[i][0]].sight = [];
-            second.push(NAME.graph[prime.links[i][0]]);
-            //Track redundancy
-            redund[prime.links[i][0]] = true;
-            nodes.push(NAME.graph[prime.links[i][0]]);
-        }
-    }
-    
-    //console.log(indexer);
-    
-            //If no significant connections
-    if (prime.links.length == 0) {
-        $('#box').html("Sorry, no significant edges for this target.");
-        return;
-    }
-    
-    if (indexer == 0) {
-        $('#box').html("Sorry, no significant edges at this cutoff.");
-    }
-    
-    else{
-        //Message
-        $("#box").html("Click a target to zoom; Double click to create new network with node at center");
-    }
-
-    for (var i in second) {
-        for (var j in second[i].links) {
-            //If the node is not already listed
-            if (!redund[second[i].links[j][0]] && (!NAME.cut || second[i].links[j][2] <= NAME.cut)) {
-
-                indexer += 1;
-                NAME.graph[second[i].links[j][0]].index = indexer;
-                NAME.graph[second[i].links[j][0]].sight = [];
-                NAME.graph[second[i].links[j][0]].lvl = 3;
-                third.push(NAME.graph[second[i].links[j][0]]);
-                nodes.push(NAME.graph[second[i].links[j][0]]);
-                //Track redundancy
-                redund[second[i].links[j][0]] = true;
-            }
-        }
-    }
-
-    //console.log(prime);
-    //console.log(second);
-    //console.log(third);
-
-    //Purge old values
-    //graph = null;
-    prime = null;
-    second = null;
-    third = null;
-
-    //console.log(nodes);
-
-    //console.log(graph[desire]);
-
-    //Old: D3 code for selecting colors
-    //var color = d3.scale.category20();
-
-
-    //Init force simulation: Consider decreasing charge (more repulsion)
-    NAME.force = d3.layout.force()
-    //Link Distance "soft value," part of path
-    //.linkDistance(10)
-    //Tenacity of edges
-    .linkStrength(1)
-    //Dimensions
-    .size([NAME.width, NAME.height])
-    //.chargeDistance(100);
-    //Consider changing charge
-    .charge(-150);
-
-    //Init SVG
-    NAME.svg = d3.select("body").append("svg:svg")
-        .attr("width", NAME.width)
-        .attr("height", NAME.height)
-        .attr('id', 'network')
-    //Ensure functional zooming and panning
-    .call(NAME.zm);
-
-    //Alias for pan/zoom
-    NAME.vis = NAME.svg.append('g');
-
-    //Information for links
-    var links = [];
-    var bilinks = [];
-
-    //Track redundant links
-    var redundL = {}
-
-    var all_nodes = nodes.slice();
-
-    indexer = 0;
-
-    for (var i in nodes) {
-        nodes[i].links.forEach(function (link) {
-
-            //Get values
-            //Source
-            var s = NAME.graph[nodes[i].name],
-                //Target
-                t = NAME.graph[link[0]],
-                //Intermediate (dummy node for path)
-                inn = {},
-                //evalue
-                evalue = link[2],
-                //SEA or PROBIS
-                type = link[3],
-                //Value (extrapolated from evalue)
-                v = (link[2] != 0 ? (Math.log(link[2]) / Math.LN10)/-150 : 1.75);
-            //If the link is not redundant
-            if (redund[link[0]] && !redundL[link[0] + ',' + nodes[i].name] && !redundL[nodes[i].name + ',' + link[0]]) {
-            //Figure out what to do with high edge number    
-            if(!NAME.cut || evalue <= NAME.cut){ 
-            //if(!(low && nodes[i].lvl == 2 && !redundL[nodes[i].name + ',' + center.name])){
-                all_nodes.push(inn);
-                links.push({
-                    source: s,
-                    target: inn,
-                    value: v
-                }, {
-                    source: inn,
-                    target: t,
-                    value: v
-                });
-                bilinks.push([s, inn, t, evalue, type, v, 'l' + indexer]);
-                redundL[nodes[i].name + ',' + link[0]] = true;
-                redundL[link[0] + ',' + nodes[i].name] = true;
-
-                //Add links for selected visualization of edges
-                NAME.graph[nodes[i].name].sight.push('l' + indexer);
-                if (NAME.graph[link[0]].sight) {
-                    NAME.graph[link[0]].sight.push('l' + indexer);
-                }
-                indexer += 1;
-            }
-           // }
-            }
-        })
-    }
-
-    //console.log(nodes)
-    //console.log(all_nodes)
-
-    //Purge old
-    redund = null;
-    redundL = null;
-
-    //Get index
-    var chosen = NAME.graph[desire].index;
-    //graph = null;
-
-    //Add data to simulation
-    NAME.force.nodes(all_nodes)
-        .links(links)
-        .linkDistance(function (d) {
-        return 20 - 10 * d.value;
-    })
-        .start();
-
-    //fix root
-    nodes[chosen].fixed = true;
-    //console.log(nodes[chosen])
-
-    //Init edges
-    var link = NAME.vis.selectAll(".link")
-        .data(bilinks)
-        .enter().append("path")
-        .attr("class", "link")
-        .attr("id", function (d) {
-        return d[6];
-    })
-    //Stroke color
-    .style("stroke", function (d) {
-        if (d[4]) {
-            return '#0DC9F7';
-        } else {
-            return '#ED1C24';
-        }
-    })
-    //Width = Value
-    .style("stroke-width", function (d) {
-        return d[5]
+    /*
+    $(function() {
+        $("#dialog").dialog();
+        $("#dialog").on( "dialogbeforeclose", function( event, ui ) {$('#loff').prop("checked", true);} );
+        $("#dialog").dialog({ position: { my: "left bottom", at: "left bottom", of: window } });
+        $("#dialog").dialog( "option", "width", 475 );
+        $("#dialog").dialog( "option", "height", 250 );
     });
+    */
 
-    //link.on("click",function(d){
-    //    document.getElementById('box').innerHTML = d[4]
-    //})
+    //$('#edgeOptions')
+    //$('#nameOptions')
+    //$('#cutoffOptions')
+    NAME.reset();
 
-    //Init nodes
-    var node = NAME.vis.selectAll(".node")
-        .data(nodes)
-        .enter().append("circle")
-        .attr("class", "node")
-        .attr('id', function (d) {
-        return d.index
-    })
-    //Different size based on lvl
-    .attr("r", function (d) {
-        if (d.lvl == 1) {
-            return 7
-        } else if (d.lvl == 2) {
-            return 5
-        } else {
-            return 3
-        }
-    })
-    //Clear dummy nodes
-    .attr('visibility', function (d) {
-        if (!d.name || (d.weight == 0 && d.name != desire)) {
-            return 'hidden'
-        }
-    })
-        .attr('cx', NAME.width / 2)
-        .attr('cy', NAME.height / 2)
-    //Green root, orange lvl 1, grey lvl 2
-    .style("fill", function (d) {
-        if (d.lvl == 1) {
-            return '#75EB00'
-        } else if (d.lvl == 2) {
-            return '#F05B47'
-        } else {
-            return '#7F7F7F'
-        }
-    });
-    //.style("fill", function(d) { return color(d.group); })
-    //.call(force.drag);
 
-    //Purge dummy nodes
-    d3.selectAll("circle[visibility=hidden]").remove();
+    //var original = null;
 
-    //Init text
-    var text = NAME.vis.selectAll(".text")
-        .data(nodes)
-        .enter()
-        .append("text")
-        .attr("class", "text");
+    //Parse JSON file
+    d3.json("noligands.json", function(error, gr) {
+      //original = gr
+      var a = [];
+    for(var k in gr){ 
+        a.push(k);
+    }
 
-    var textLabels = text.attr("x", NAME.width / 2)
-        .attr("y", NAME.height / 2)
-        .text(function (d) {
-        return d.name;
-    })
-        .attr('id', function (d) {
-        return 't' + d.index
-    })
-        .attr("font-family", "sans-serif")
-        .attr("font-size", "8px")
-        .attr("visibility", function (d) {
-        if (d.lvl !== 2 && !$('#noa')[0].checked) {
-            return "hidden"
-        }
-    })
-        .attr("style", "fill: 0F0F0F");
-
-    //d3.selectAll("text[visibility=hidden]").remove();
-
-    //Get selected edges and text labels
-    eye = nodes[chosen];
-    NAME.previous = nodes[chosen];
-    NAME.previous_fill = $("#" + NAME.previous.index).css("fill");
-    //console.log(eye);
-    NAME.see(eye);
-
-    //Click behavior
-    node.on("click", function (d) {
-        NAME.see(d);
-        $('#box').html(d.name);
-        if (NAME.previous == null) {
-            NAME.previous_fill = $("#" + d.index).css("fill");
-            $("#" + d.index).css("fill", '#FDF200');
-            NAME.previous = d;
-        } else {
-            $("#" + NAME.previous.index).css("fill", NAME.previous_fill);
-            NAME.previous_fill = $("#" + d.index).css("fill");
-            $("#" + d.index).css("fill", '#FDF200');
-            NAME.previous = d;
-        }
-        redraw(d.x, d.y);
-    })
-    
-    //New graph on double click
-    node.on("dblclick", function(d) {
-		NAME.force.stop();
+    $( "#tags" ).autocomplete({
+      source: a,
+      select: function( event, ui){
+          if(NAME.force !== null){
+            NAME.force.stop();
+          }
         $('#flow').html('Stop');
-        main(d.name);
-    })
-
-    node.on("mouseover",function(d){
-        $("#" + d.index).css("stroke", '#FDF200');
-		//$("#t" + d.index).css("fill", '#FF2321');
-		$("#t" + d.index).css("font-size", '12px');
-		$("#" + d.index).css("stroke-width", parseFloat($("#" + d.index).css("stroke-width"),10)*2);
-    })
-    
-    node.on("mouseout",function(d){
-        $("#" + d.index).css("stroke", '#FFFDD0');
-		//$("#t" + d.index).css("fill", '#0F0F0F');
-		$("#t" + d.index).css("font-size", '8px');
-		$("#" + d.index).css("stroke-width", parseFloat($("#" + d.index).css("stroke-width"),10)/2);
-    })
-	
-    link.on("click",function(d){
-        $("#box").html(d[0].name + ' || ' + d[2].name + ': ' + d[3]);
-    })
-    
-    link.on("mouseover",function(d){
-        $("#" + d[6]).css("stroke", '#FA6900');
-        $("#" + d[6]).css("stroke-width", parseFloat($("#" + d[6]).css("stroke-width"),10)*2);
-    })
-    
-    link.on("mouseout",function(d){
-        var str = d[4] ? '#0DC9F7' : '#ED1C24';
-        $("#" + d[6]).css("stroke", str);
-        $("#" + d[6]).css("stroke-width", parseFloat($("#" + d[6]).css("stroke-width"),10)/2);
-    })
-    //console.log(nodes)
-    //console.log(links)
-    //console.log(bilinks)
-
-
-    //Titles for hovering
-    node.append("title")
-        .text(function (d) {
-        return d.name;
+        var TestVar = ui.item.value;
+        NAME.main(TestVar);
+        //Remove text from box
+        $('#tags').val('');
+        //Necessary to remove text
+        return false;
+        }
     });
-    
-    var tooltips= d3.selectAll("path")
-      .append("title")
-        .classed("tooltip", true)
-        .text(function(d) { return d[3]; });
+      
+      NAME.graph = gr;
+      gr = null;
+    });
 
-    //Every tick of the simulation
-    NAME.force.on("tick", function () {
+    //Main function for visualization
+    NAME.main = function (desire) {
 
-        //Force center for the root
-        nodes[chosen].x = NAME.width / 2;
-        nodes[chosen].y = NAME.height / 2;
+        $('#tags').blur();
+        //$('#tags').val('');
 
-        //Move links
-        link.attr("d", function (d) {
+        NAME.cut = 1;
+        
+        if (!isNaN($('#cutoff').val()) && $('#cutoff').val()){
+            NAME.cut = $('#cutoff').val();
+        }
 
-            if (d[2].x !== undefined) {
-                return "M" + d[0].x + "," + d[0].y + "S" + d[1].x + "," + d[1].y + " " + d[2].x + "," + d[2].y;
+        var low = false;
+
+        //graph = $.extend(true, [],original);
+
+        $("#box").html("Click a target to zoom; Double click to create new network with node at center");
+
+        var old = $('#network')[0];
+
+        //Purge old svg
+        if (old !== null && old !== undefined) {
+            old.parentNode.removeChild(old);
+            NAME.last.fixed = false;
+            NAME.previous = null;
+            NAME.rezoom();
+        }
+
+        //Root
+        var prime = null;
+        //Level 1
+        var second = [];
+        //Level 2
+        var third = [];
+
+        //Dictionary of nodes
+        var redund = {};
+
+        //Selected nodes
+        var nodes = [];
+
+        //For displaying selected edges/text labels
+        var eye = null;
+        //For resetting later
+        NAME.last = NAME.graph[desire];
+
+        //if(first.length == 0){
+        //    document.getElementById('box').innerHTML = "Sorry, no significant connections...";
+        //    return;
+        //}
+
+        //For acquiring coherent indexes
+        var indexer = 0;
+
+        //Root node
+        prime = NAME.graph[desire];
+        NAME.center = NAME.graph[desire];
+
+        //Init node values
+        //For style of node
+        prime.lvl = 1;
+        prime.index = indexer;
+        prime.sight = [];
+        redund[desire] = true;
+        nodes.push(NAME.graph[desire]);
+        
+        var asked = false;
+        var bestE = 1;
+        
+        for (var i in prime.links) {
+            if (prime.links[i][2] < bestE){
+                bestE = prime.links[i][2];
+            }
+        }
+
+        for (var i in prime.links) {
+
+            if(!NAME.cut || prime.links[i][2] <= NAME.cut){
+                indexer += 1;
+                //Init node values
+                NAME.graph[prime.links[i][0]].lvl = 2;
+                NAME.graph[prime.links[i][0]].index = indexer;
+                NAME.graph[prime.links[i][0]].sight = [];
+                second.push(NAME.graph[prime.links[i][0]]);
+                //Track redundancy
+                redund[prime.links[i][0]] = true;
+                nodes.push(NAME.graph[prime.links[i][0]]);
+            }
+        }
+        
+        //console.log(indexer);
+        
+                //If no significant connections
+        if (prime.links.length == 0) {
+            $('#box').html("Sorry, no significant edges for this target.");
+            return;
+        }
+        
+        if (indexer == 0) {
+            $('#box').html("Sorry, no significant edges at this cutoff.");
+        }
+        
+        else{
+            //Message
+            $("#box").html("Click a target to zoom; Double click to create new network with node at center");
+        }
+
+        for (var i in second) {
+            for (var j in second[i].links) {
+                //If the node is not already listed
+                if (!redund[second[i].links[j][0]] && (!NAME.cut || second[i].links[j][2] <= NAME.cut)) {
+
+                    indexer += 1;
+                    NAME.graph[second[i].links[j][0]].index = indexer;
+                    NAME.graph[second[i].links[j][0]].sight = [];
+                    NAME.graph[second[i].links[j][0]].lvl = 3;
+                    third.push(NAME.graph[second[i].links[j][0]]);
+                    nodes.push(NAME.graph[second[i].links[j][0]]);
+                    //Track redundancy
+                    redund[second[i].links[j][0]] = true;
+                }
+            }
+        }
+
+        //console.log(prime);
+        //console.log(second);
+        //console.log(third);
+
+        //Purge old values
+        //graph = null;
+        prime = null;
+        second = null;
+        third = null;
+
+        //console.log(nodes);
+
+        //console.log(graph[desire]);
+
+        //Old: D3 code for selecting colors
+        //var color = d3.scale.category20();
+
+
+        //Init force simulation: Consider decreasing charge (more repulsion)
+        NAME.force = d3.layout.force()
+        //Link Distance "soft value," part of path
+        //.linkDistance(10)
+        //Tenacity of edges
+        .linkStrength(1)
+        //Dimensions
+        .size([NAME.width, NAME.height])
+        //.chargeDistance(100);
+        //Consider changing charge
+        .charge(-150);
+
+        //Init SVG
+        NAME.svg = d3.select("body").append("svg:svg")
+            .attr("width", NAME.width)
+            .attr("height", NAME.height)
+            .attr('id', 'network')
+        //Ensure functional zooming and panning
+        .call(NAME.zm);
+
+        //Alias for pan/zoom
+        NAME.vis = NAME.svg.append('g');
+
+        //Information for links
+        var links = [];
+        var bilinks = [];
+
+        //Track redundant links
+        var redundL = {}
+
+        var all_nodes = nodes.slice();
+
+        indexer = 0;
+
+        for (var i in nodes) {
+            nodes[i].links.forEach(function (link) {
+
+                //Get values
+                //Source
+                var s = NAME.graph[nodes[i].name],
+                    //Target
+                    t = NAME.graph[link[0]],
+                    //Intermediate (dummy node for path)
+                    inn = {},
+                    //evalue
+                    evalue = link[2],
+                    //SEA or PROBIS
+                    type = link[3],
+                    //Value (extrapolated from evalue)
+                    v = (link[2] != 0 ? (Math.log(link[2]) / Math.LN10)/-150 : 1.75);
+                //If the link is not redundant
+                if (redund[link[0]] && !redundL[link[0] + ',' + nodes[i].name] && !redundL[nodes[i].name + ',' + link[0]]) {
+                //Figure out what to do with high edge number    
+                if(!NAME.cut || evalue <= NAME.cut){ 
+                //if(!(low && nodes[i].lvl == 2 && !redundL[nodes[i].name + ',' + center.name])){
+                    all_nodes.push(inn);
+                    links.push({
+                        source: s,
+                        target: inn,
+                        value: v
+                    }, {
+                        source: inn,
+                        target: t,
+                        value: v
+                    });
+                    bilinks.push([s, inn, t, evalue, type, v, 'l' + indexer]);
+                    redundL[nodes[i].name + ',' + link[0]] = true;
+                    redundL[link[0] + ',' + nodes[i].name] = true;
+
+                    //Add links for selected visualization of edges
+                    NAME.graph[nodes[i].name].sight.push('l' + indexer);
+                    if (NAME.graph[link[0]].sight) {
+                        NAME.graph[link[0]].sight.push('l' + indexer);
+                    }
+                    indexer += 1;
+                }
+               // }
+                }
+            })
+        }
+
+        //console.log(nodes)
+        //console.log(all_nodes)
+
+        //Purge old
+        redund = null;
+        redundL = null;
+
+        //Get index
+        var chosen = NAME.graph[desire].index;
+        //graph = null;
+
+        //Add data to simulation
+        NAME.force.nodes(all_nodes)
+            .links(links)
+            .linkDistance(function (d) {
+            return 20 - 10 * d.value;
+        })
+            .start();
+
+        //fix root
+        nodes[chosen].fixed = true;
+        //console.log(nodes[chosen])
+
+        //Init edges
+        var link = NAME.vis.selectAll(".link")
+            .data(bilinks)
+            .enter().append("path")
+            .attr("class", "link")
+            .attr("id", function (d) {
+            return d[6];
+        })
+        //Stroke color
+        .style("stroke", function (d) {
+            if (d[4]) {
+                return '#0DC9F7';
+            } else {
+                return '#ED1C24';
+            }
+        })
+        //Width = Value
+        .style("stroke-width", function (d) {
+            return d[5]
+        });
+
+        //link.on("click",function(d){
+        //    document.getElementById('box').innerHTML = d[4]
+        //})
+
+        //Init nodes
+        var node = NAME.vis.selectAll(".node")
+            .data(nodes)
+            .enter().append("circle")
+            .attr("class", "node")
+            .attr('id', function (d) {
+            return d.index
+        })
+        //Different size based on lvl
+        .attr("r", function (d) {
+            if (d.lvl == 1) {
+                return 7
+            } else if (d.lvl == 2) {
+                return 5
+            } else {
+                return 3
+            }
+        })
+        //Clear dummy nodes
+        .attr('visibility', function (d) {
+            if (!d.name || (d.weight == 0 && d.name != desire)) {
+                return 'hidden'
+            }
+        })
+            .attr('cx', NAME.width / 2)
+            .attr('cy', NAME.height / 2)
+        //Green root, orange lvl 1, grey lvl 2
+        .style("fill", function (d) {
+            if (d.lvl == 1) {
+                return '#75EB00'
+            } else if (d.lvl == 2) {
+                return '#F05B47'
+            } else {
+                return '#7F7F7F'
             }
         });
-        //Move nodes
-        node.attr("cx", function (d) {
-            return d.x;
-        })
-            .attr("cy", function (d) {
-            return d.y;
-        });
-        //Move text
-        textLabels.attr("x", function (d) {
-            return d.x;
-        })
-            .attr("y", function (d) {
-            return d.y;
-        });
+        //.style("fill", function(d) { return color(d.group); })
+        //.call(force.drag);
 
-    });
-};
+        //Purge dummy nodes
+        d3.selectAll("circle[visibility=hidden]").remove();
+
+        //Init text
+        var text = NAME.vis.selectAll(".text")
+            .data(nodes)
+            .enter()
+            .append("text")
+            .attr("class", "text");
+
+        var textLabels = text.attr("x", NAME.width / 2)
+            .attr("y", NAME.height / 2)
+            .text(function (d) {
+            return d.name;
+        })
+            .attr('id', function (d) {
+            return 't' + d.index
+        })
+            .attr("font-family", "sans-serif")
+            .attr("font-size", "8px")
+            .attr("visibility", function (d) {
+            if (d.lvl !== 2 && !$('#noa')[0].checked) {
+                return "hidden"
+            }
+        })
+            .attr("style", "fill: 0F0F0F");
+
+        //d3.selectAll("text[visibility=hidden]").remove();
+
+        //Get selected edges and text labels
+        eye = nodes[chosen];
+        NAME.previous = nodes[chosen];
+        NAME.previous_fill = $("#" + NAME.previous.index).css("fill");
+        //console.log(eye);
+        NAME.see(eye);
+
+        //Click behavior
+        node.on("click", function (d) {
+            NAME.refresh(d.name);
+        })
+
+        node.on("mouseover",function(d){
+            $("#" + d.index).css("stroke", '#FDF200');
+            //$("#t" + d.index).css("fill", '#FF2321');
+            $("#t" + d.index).css("font-size", '12px');
+            $("#" + d.index).css("stroke-width", parseFloat($("#" + d.index).css("stroke-width"),10)*2);
+        })
+        
+        node.on("mouseout",function(d){
+            $("#" + d.index).css("stroke", '#FFFDD0');
+            //$("#t" + d.index).css("fill", '#0F0F0F');
+            $("#t" + d.index).css("font-size", '8px');
+            $("#" + d.index).css("stroke-width", parseFloat($("#" + d.index).css("stroke-width"),10)/2);
+        })
+        
+        link.on("click",function(d){
+            $("#box").html(d[0].name + ' || ' + d[2].name + ': ' + d[3]);
+        })
+        
+        link.on("mouseover",function(d){
+            $("#" + d[6]).css("stroke", '#FA6900');
+            $("#" + d[6]).css("stroke-width", parseFloat($("#" + d[6]).css("stroke-width"),10)*2);
+        })
+        
+        link.on("mouseout",function(d){
+            var str = d[4] ? '#0DC9F7' : '#ED1C24';
+            $("#" + d[6]).css("stroke", str);
+            $("#" + d[6]).css("stroke-width", parseFloat($("#" + d[6]).css("stroke-width"),10)/2);
+        })
+        //console.log(nodes)
+        //console.log(links)
+        //console.log(bilinks)
+
+
+        //Titles for hovering
+        node.append("title")
+            .text(function (d) {
+            return d.name;
+        });
+        
+        var tooltips= d3.selectAll("path")
+          .append("title")
+            .classed("tooltip", true)
+            .text(function(d) { return d[3]; });
+
+        //Every tick of the simulation
+        NAME.force.on("tick", function () {
+
+            //Force center for the root
+            nodes[chosen].x = NAME.width / 2;
+            nodes[chosen].y = NAME.height / 2;
+
+            //Move links
+            link.attr("d", function (d) {
+
+                if (d[2].x !== undefined) {
+                    return "M" + d[0].x + "," + d[0].y + "S" + d[1].x + "," + d[1].y + " " + d[2].x + "," + d[2].y;
+                }
+            });
+            //Move nodes
+            node.attr("cx", function (d) {
+                return d.x;
+            })
+                .attr("cy", function (d) {
+                return d.y;
+            });
+            //Move text
+            textLabels.attr("x", function (d) {
+                return d.x;
+            })
+                .attr("y", function (d) {
+                return d.y;
+            });
+
+        });
+    };
 
 });
 </script>
@@ -747,20 +736,20 @@ function main(desire) {
 
 <div class='left'>
 
-<p id = 'box' style = 'font-family:"Courier New", Courier, monospace;color:#FFB90F;padding-left:2em'>Selected target name will be displayed here</p>
+<p id ='box' style ='font-family:"Courier New", Courier, monospace;color:#FFB90F;padding-left:2em'>Selected target name will be displayed here</p>
 
 <hr>
 
-<form id = "edgeOptions" style = "padding-left:2em;padding-top:0.3em;">
+<form id = "edgeOptions" style ="padding-left:2em;padding-top:0.3em;">
     <label for="edges" style='color:#0DC9F7;font-family:"Courier New", Courier, monospace;'>Edges: </label>
-    <input type="radio" name = "eo" id="eos" onClick = "NAME.see(NAME.previous)" checked> Selection
-    <input type="radio" name = "eo" id="eoa" onClick = "NAME.omniscience('e');"> All<br><br>
+    <input type="radio" name = "eo" id="eos" onClick ="NAME.see(NAME.previous)" checked> Selection
+    <input type="radio" name = "eo" id="eoa" onClick ="NAME.omniscience('e');"> All<br><br>
 </form>
 
-<form id = "nameOptions" style = "padding-left:4em;padding-right:2em;padding-top:0.3em;">
+<form id ="nameOptions" style ="padding-left:4em;padding-right:2em;padding-top:0.3em;">
     <label for="names" style='color:#000000;font-family:"Courier New", Courier, monospace;'>Names: </label>
-    <input type="radio" name = "no" id="nos"  onClick = "NAME.see(NAME.previous)" checked> Selection
-    <input type="radio" name = "no" id="noa" onClick = "NAME.omniscience('n');"> All<br><br>
+    <input type="radio" name ="no" id="nos"  onClick ="NAME.see(NAME.previous)" checked> Selection
+    <input type="radio" name ="no" id="noa" onClick ="NAME.omniscience('n');"> All<br><br>
 </form>
 
 <div class="ui-widget">
@@ -768,16 +757,17 @@ function main(desire) {
   <input id="tags">
 </div>
 
-<button onclick = 'NAME.rezoom();' style = "padding-top:0.3em;padding-bottom:0.3em;">Rezoom</button>
-<button onclick = 'NAME.flow();' style = "padding-top:0.3em;padding-bottom:0.3em;"><div id = 'flow' >Stop</div></button>
+<button onclick ='NAME.rezoom();' style ="padding-top:0.3em;padding-bottom:0.3em;">Rezoom</button>
+<button onclick ='NAME.flow();' style ="padding-top:0.3em;padding-bottom:0.3em;"><div id = 'flow' >Stop</div></button>
 
 <br><br><br>
 
- <form style = "padding-left:2em;color:#ED1C24;font-family:'Courier New', Courier, monospace;">
+ <form style ="padding-left:2em;color:#ED1C24;font-family:'Courier New', Courier, monospace;">
 Cutoff ([value]e[exponent]): <input type="text" id="cutoff">
 </form>
 
-<button onclick = "NAME.help();">Help</button>
+<button onclick ="NAME.refresh(NAME.center.name);">Reset</button>
+<button onclick ="NAME.help();">Help</button>
 
 </div>
 
